@@ -10,22 +10,26 @@ struct StartView: View {
     @StateObject var bleManager: BLEManager
     let workoutManager: WorkoutManager  // <-- healthkit
 
+    @State private var selectedTab = 0
+    @State private var recordingTimeString: String = "00:00"
+    private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+
     var body: some View {
         VStack {
             // App Header (Logo + Name)
             HStack {
-                Image("HandWaveLogo") // Ensure this matches your asset name in Xcode
+                Image("HandWaveLogo")
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 40, height: 40) // Adjust size if needed
-                    .clipShape(Circle()) // Ensures a circular logo
-                
+                    .frame(width: 40, height: 40)
+                    .clipShape(Circle())
+
                 Text("Hand Wave")
                     .font(.title2)
                     .fontWeight(.bold)
-                
-                Spacer() // Pushes content to the left
-                
+
+                Spacer()
+
                 if let battery = bleManager.batteryLevel {
                     ZStack {
                         Image(systemName:
@@ -47,80 +51,134 @@ struct StartView: View {
                 }
             }
             .padding(.horizontal)
-            .padding(.top, 10) // Adjust top padding for spacing
+            .padding(.top, 10)
 
-            Divider() // Adds a subtle line below the header
+            Divider()
 
             // TabView Section
-            TabView {
-                // Home Page with Instructions
+            TabView(selection: $selectedTab) {
+                // Home Tab
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 15) {
-                        Text("How to Use the EMG Device")
-                            .font(.title2)
+                    VStack(alignment: .center, spacing: 24) {
+                        Text("Real-time Muscle Strain Monitoring")
+                            .font(.title)
                             .fontWeight(.bold)
-                            .padding(.bottom, 5)
-                        
-                        Text("**Step 1: Preparing the EMG Sensor**")
-                            .font(.headline)
-                        Text("""
-                        1. **Clean the Skin:** Use alcohol wipes where the sensor will be placed for better contact.
-                        2. **Attach the Sensor:** Place it on the muscle you want to measure.
-                        """)
-                        
-                        Text("**Step 2: Connecting to the App**")
-                            .font(.headline)
-                        Text("""
-                        1. **Enable Bluetooth** on your phone.
-                        2. **Open the App** – The home screen will appear.
-                        3. **Go to 'Graph' tab** and select your sensor to connect.
-                        """)
-                        
-                        Text("**Step 3: Recording and Analyzing EMG Data**")
-                            .font(.headline)
-                        Text("""
-                        1. **Go to 'Graph' Tab** to view real-time EMG signals.
-                        2. **Start Recording** and perform your muscle activity.
-                        3. **Stop and Save** when done, then export data as needed.
-                        """)
-                        
-                        Text("**Step 4: Reviewing and Exporting Data**")
-                            .font(.headline)
-                        Text("""
-                        - **View previous recordings** in the 'Data' tab.
-                        - **Export data** in CSV format for further analysis.
-                        """)
-                        
-                        // Button to navigate to the Graph UI (Existing ContentView)
-                        NavigationLink(destination: ContentView(emgGraph: emgGraph, bleManager: bleManager, workoutManager: workoutManager)) {
+                            .multilineTextAlignment(.center)
 
+                        Text("Use %MVE thresholds to detect overuse, validate posture, and document muscle workload efficiently.")
+                            .font(.body)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+
+                        // Sensor & Recording Info
+                        GroupBox(label: Label("Connection Status", systemImage: "bolt.horizontal.circle")) {
+                            if bleManager.isConnected {
+                                VStack(spacing: 12) {
+                                    Label("Sensor Connected", systemImage: "antenna.radiowaves.left.and.right")
+                                        .font(.headline)
+                                        .foregroundColor(.green)
+
+                                    HStack(spacing: 16) {
+                                        if let battery = bleManager.batteryLevel {
+                                            Label("Battery: \(battery)%", systemImage:
+                                                battery < 20 ? "battery.25" :
+                                                battery < 50 ? "battery.50" :
+                                                battery < 80 ? "battery.75" :
+                                                "battery.100"
+                                            )
+                                        }
+                                        if emgGraph.isRecording {
+                                            Label("Recording: Active", systemImage: "record.circle")
+                                                .foregroundColor(.blue)
+
+                                            Text("⏱ Duration: \(recordingTimeString)")
+                                                .font(.subheadline)
+                                                .foregroundColor(.secondary)
+                                        }
+                                    }
+                                    .font(.subheadline)
+                                }
+                                .onReceive(timer) { _ in
+                                    if emgGraph.isRecording {
+                                        let seconds = Int(CACurrentMediaTime() - emgGraph.start_time)
+                                        let minutes = seconds / 60
+                                        let remainingSeconds = seconds % 60
+                                        recordingTimeString = String(format: "%02d:%02d", minutes, remainingSeconds)
+                                    } else {
+                                        recordingTimeString = "00:00"
+                                    }
+                                }
+                            } else {
+                                Label("No sensor connected", systemImage: "wifi.slash")
+                                    .foregroundColor(.red)
+                                    .font(.subheadline)
+                            }
                         }
-                        .padding(.top, 20)
+                        .padding()
+
+                        // App Features
+                        GroupBox(label: Label("Capabilities", systemImage: "staroflife.circle")) {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Label("View EMG signals as %MVE in live plots", systemImage: "waveform.path.ecg")
+                                Label("Review recorded sessions with MVE thresholds in-app", systemImage: "chart.bar.xaxis")
+                                Label("Export CSV data for detailed offline analysis", systemImage: "square.and.arrow.up")
+                            }
+                            .font(.subheadline)
+                            .padding(.vertical, 5)
+                        }
+                        .padding(.horizontal)
+
+                        // CTA Button
+                        Button(action: {
+                            selectedTab = 2
+                        }) {
+                            Label("Start Monitoring", systemImage: "play.circle.fill")
+                                .font(.headline)
+                                .padding()
+                                .frame(maxWidth: .infinity)
+                                .background(Color.blue)
+                                .foregroundColor(.white)
+                                .cornerRadius(12)
+                                .padding(.horizontal)
+                        }
+
+                        Spacer()
                     }
-                    .padding()
+                    .padding(.top, 30)
                 }
                 .tabItem {
                     Image(systemName: "house")
                     Text("Home")
                 }
-                
-                // Graph Tab - Loads the existing ContentView.swift
-                ContentView(emgGraph: emgGraph, bleManager: bleManager, workoutManager: workoutManager)
+                .tag(0)
 
+                // Help Tab
+                HelpView()
+                    .tabItem {
+                        Image(systemName: "questionmark.circle")
+                        Text("Help")
+                    }
+                    .tag(1)
+
+                // Graph Tab
+                ContentView(emgGraph: emgGraph, bleManager: bleManager, workoutManager: workoutManager)
                     .tabItem {
                         Image(systemName: "waveform.path.ecg")
                         Text("Graph")
                     }
-                
-                // Data Tab - Calls the new DataView.swift
+                    .tag(2)
+
+                // Data Tab
                 DataView()
                     .tabItem {
                         Image(systemName: "doc.text")
                         Text("Data")
                     }
+                    .tag(3)
             }
-            .background(Color.white) // Ensures no transparency issues
+            .background(Color.white)
         }
     }
 }
+
 
