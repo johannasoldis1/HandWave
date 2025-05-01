@@ -24,7 +24,8 @@ struct EffortZone: Identifiable {
 
 struct PlotView: View {
     @State private var recordedFiles: [String] = []
-    @State private var selectedFile: String = ""    // myline
+    var initialFile: String? = nil
+    @State private var selectedFile: String = "" // myline
     @State private var dataPoints: [DataPoint] = []
     @State private var effortZones: [EffortZone] = [] // array for effort zones
     @State private var showingImporter = false  // my line to import csv file
@@ -329,6 +330,10 @@ struct PlotView: View {
         }
         .onAppear {
             loadCSVFiles()
+            if let file = initialFile {
+                selectedFile = file
+                loadDataFromCSV(fileName: file)
+            }
         }
         .onChange(of: selectedFile) {
             loadDataFromCSV(fileName: selectedFile)
