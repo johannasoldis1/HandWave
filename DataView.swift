@@ -3,7 +3,6 @@
 //  HandWave
 //
 
-
 import SwiftUI
 
 struct DataView: View {
@@ -12,11 +11,6 @@ struct DataView: View {
     var body: some View {
         NavigationView {
             VStack {
-              //  Text("Recorded EMG Data")
-                //    .font(.title2)
-                  //  .padding()
-                
-                // Add this new NavigationLink
                 NavigationLink(destination: PlotView()) {
                     Text("Go to Plot Screen")
                         .font(.headline)
@@ -28,44 +22,46 @@ struct DataView: View {
                 .padding(.bottom, 20)
 
                 List(recordedFiles, id: \.self) { fileName in
-                    HStack {
-                        Text(fileName)
-                            .lineLimit(1)
-                            .padding(.trailing, 10) // Adds spacing between text and buttons
+                    NavigationLink(destination: PlotView(initialFile: fileName)) {
+                        HStack {
+                            Text(fileName)
+                                .lineLimit(1)
+                                .padding(.trailing, 10)
 
-                        Spacer()
+                            Spacer()
 
-                        // Export Button
-                        Button(action: {
-                            exportCSV(fileName)
-                        }) {
-                            HStack {
-                                Image(systemName: "square.and.arrow.up")
-                                Text("Share")
+                            // Export Button
+                            Button(action: {
+                                exportCSV(fileName)
+                            }) {
+                                HStack {
+                                    Image(systemName: "square.and.arrow.up")
+                                    Text("Share")
+                                }
+                                .frame(minWidth: 80)
+                                .padding(8)
+                                .background(Color.blue.opacity(0.2))
+                                .cornerRadius(8)
                             }
-                            .frame(minWidth: 80) // Ensures a larger touch area
-                            .padding(8)
-                            .background(Color.blue.opacity(0.2))
-                            .cornerRadius(8)
-                        }
-                        .buttonStyle(PlainButtonStyle()) // Removes default button styles
+                            .buttonStyle(PlainButtonStyle())
 
-                        // Delete Button
-                        Button(action: {
-                            deleteCSV(fileName)
-                        }) {
-                            HStack {
-                                Image(systemName: "trash")
-                                Text("Delete")
+                            // Delete Button
+                            Button(action: {
+                                deleteCSV(fileName)
+                            }) {
+                                HStack {
+                                    Image(systemName: "trash")
+                                    Text("Delete")
+                                }
+                                .frame(minWidth: 80)
+                                .padding(8)
+                                .background(Color.red.opacity(0.2))
+                                .cornerRadius(8)
                             }
-                            .frame(minWidth: 80) // Ensures a larger touch area
-                            .padding(8)
-                            .background(Color.red.opacity(0.2))
-                            .cornerRadius(8)
+                            .buttonStyle(PlainButtonStyle())
                         }
-                        .buttonStyle(PlainButtonStyle()) // Removes default button styles
+                        .padding(.vertical, 5)
                     }
-                    .padding(.vertical, 5) // Adds spacing between list items
                 }
                 .onAppear {
                     loadCSVFiles()
@@ -78,7 +74,6 @@ struct DataView: View {
                         .foregroundColor(.primary)
                 }
             }
-       
         }
     }
 
@@ -88,7 +83,7 @@ struct DataView: View {
         if let documentDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first {
             do {
                 let files = try fileManager.contentsOfDirectory(atPath: documentDirectory.path)
-                recordedFiles = files.filter { $0.hasSuffix(".csv") } // Only show CSV files
+                recordedFiles = files.filter { $0.hasSuffix(".csv") }
             } catch {
                 print("Error loading CSV files: \(error)")
             }
@@ -100,9 +95,9 @@ struct DataView: View {
         let fileManager = FileManager.default
         if let documentDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first {
             let fileURL = documentDirectory.appendingPathComponent(fileName)
-            
+
             let activityController = UIActivityViewController(activityItems: [fileURL], applicationActivities: nil)
-            
+
             if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
                let rootViewController = windowScene.windows.first?.rootViewController {
                 rootViewController.present(activityController, animated: true, completion: nil)
@@ -117,12 +112,11 @@ struct DataView: View {
             let fileURL = documentDirectory.appendingPathComponent(fileName)
             do {
                 try fileManager.removeItem(at: fileURL)
-                loadCSVFiles() // Refresh list after deletion
+                loadCSVFiles()
             } catch {
                 print("Error deleting CSV file: \(error)")
             }
         }
     }
 }
-
 
