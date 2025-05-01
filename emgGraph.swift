@@ -71,7 +71,7 @@ class emgGraph: ObservableObject {
     
     
     // failsafe for disconnection
-    @Published var isRecording = false
+    @Published var isRecording: Bool = false // Changing the code from:  @Published var isRecording = false to be able to see the time that has been recorded in start view
     
     /// Used to trigger recalculation of %MVE after reconnect
     var forceMVERecalculation: Bool = false
@@ -110,7 +110,8 @@ class emgGraph: ObservableObject {
             
             print("🔴 Starting Recording... Current emgGraph instance: \(String(describing: self))")
             self?.recording = true
-            //self?.start_time = CACurrentMediaTime()
+            self?.isRecording = true // Changes: For recording timer in start view
+            self?.start_time = CACurrentMediaTime() // Took out the comment to use for recording on home screen
             //  self?.isCalibrating = true // ✅ Start calibration phase
             //  self?.calibrationStartTime = self?.start_time
             //self?.mveValue = 0.0 // ✅ Reset MVE before calibration
@@ -150,6 +151,7 @@ class emgGraph: ObservableObject {
         // Stop recording
         print("🔹 Stopping recording and preparing data for export...")
         recording = false
+        isRecording = false // Changes: For recording timer in start view
         let stop_time = CACurrentMediaTime()
         recording_duration = stop_time - start_time // Store the duration
         print("Recording stopped. Duration: \(recording_duration) seconds")
