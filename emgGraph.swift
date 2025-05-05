@@ -363,38 +363,36 @@ class emgGraph: ObservableObject {
         isCalibrating = false  // Ensure calibration is marked as done
     }
     
-    
-    
-    
-    private func saveToFile(_ dataset: String) {
-        DispatchQueue.global(qos: .background).async {
-            guard !dataset.isEmpty else {
-                print("❌ Dataset is empty. File saving aborted.")
-                return
+    // Change to see files no matter the name:
+    private func saveToFile(_ dataset: String) -> URL? {
+        guard !dataset.isEmpty else {
+            print("❌ Dataset is empty. File saving aborted.")
+            return nil
+        }
+
+        let fileManager = FileManager.default
+        let documentDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd'T'HH_mm_ss"
+
+        guard let directory = documentDirectory else {
+            print("❌ Unable to access the document directory.")
+            return nil
+        }
+
+        let filename = directory.appendingPathComponent("emg_data_\(dateFormatter.string(from: Date())).csv")
+
+        do {
+            try dataset.write(to: filename, atomically: true, encoding: .utf8)
+            DispatchQueue.main.async {
+                print("✅ File saved successfully at: \(filename.path)")
             }
-            
-            let fileManager = FileManager.default
-            let documentDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateFormat = "yyyy-MM-dd'T'HH_mm_ss"
-            
-            guard let directory = documentDirectory else {
-                print("❌ Unable to access the document directory.")
-                return
+            return filename
+        } catch {
+            DispatchQueue.main.async {
+                print("❌ Failed to save file: \(error.localizedDescription)")
             }
-            
-            let filename = directory.appendingPathComponent("emg_data_\(dateFormatter.string(from: Date())).csv")
-            
-            do {
-                try dataset.write(to: filename, atomically: true, encoding: .utf8)
-                DispatchQueue.main.async {
-                    print("✅ File saved successfully at: \(filename.path)")
-                }
-            } catch {
-                DispatchQueue.main.async {
-                    print("❌ Failed to save file: \(error.localizedDescription)")
-                }
-            }
+            return nil
         }
     }
     
