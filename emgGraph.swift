@@ -536,9 +536,9 @@ class emgGraph: ObservableObject {
                         self.recorded_rms.append(CGFloat(rmsValue))
                         
                         // Ensure buffer does not overflow
-                        if self.percentMVEHistory.count > 500 {
-                            self.percentMVEHistory.removeFirst(self.percentMVEHistory.count - 500)
-                        }
+                        //if self.percentMVEHistory.count > 500 {
+                        //    self.percentMVEHistory.removeFirst(self.percentMVEHistory.count - 500)
+                        //}
                         
                         // Add the calculated %MVE to the mveBuffer for widget
                         self.mveBufferwidget.append(CGFloat(percentMVE))
