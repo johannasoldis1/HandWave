@@ -321,22 +321,29 @@ struct PlotView: View {
                 EmptyView() // Hides HandWave logo
             }
         }
-        // new add maybe to remove
         .sheet(isPresented: $showingImporter) {
             DocumentPicker { url in
+                let fileName = url.lastPathComponent
                 copyCSVIntoApp(url: url)
-                loadCSVFiles()
+
+                // Wait for copy, then load it directly (no need to wait for list to update)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    self.selectedFile = fileName
+                    loadDataFromCSV(fileName: fileName)
+
+                    if !recordedFiles.contains(fileName) {
+                        recordedFiles.append(fileName)
+                    }
+                }
             }
         }
         .onAppear {
             loadCSVFiles()
             if let file = initialFile {
+                print("Initial file selected: \(file)")
                 selectedFile = file
                 loadDataFromCSV(fileName: file)
             }
-        }
-        .onChange(of: selectedFile) {
-            loadDataFromCSV(fileName: selectedFile)
         }
         .alert("Chart Saved ✅", isPresented: $showExportAlert) {
             Button("OK", role: .cancel) { }
@@ -416,6 +423,12 @@ struct PlotView: View {
     // CSV Importer
     func copyCSVIntoApp(url: URL) {
         let fileManager = FileManager.default
+        guard url.startAccessingSecurityScopedResource() else {
+            print("❌ Could not access file securely.")
+            return
+        }
+        defer { url.stopAccessingSecurityScopedResource() }
+
         if let documentDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first {
             let destinationURL = documentDirectory.appendingPathComponent(url.lastPathComponent)
             do {
@@ -423,8 +436,9 @@ struct PlotView: View {
                     try fileManager.removeItem(at: destinationURL)
                 }
                 try fileManager.copyItem(at: url, to: destinationURL)
+                print("✅ Successfully copied: \(url.lastPathComponent)")
             } catch {
-                print("Error copying file into app: \(error)")
+                print("❌ Error copying file: \(error)")
             }
         }
     }
