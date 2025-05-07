@@ -86,7 +86,7 @@ struct WidgetmveEntryView: View {
                 .foregroundColor(.white)
         }
         .padding()
-        .background(Color.black.opacity(0.8))
+        .background(Color.white)
         .cornerRadius(10)
     }
 }
