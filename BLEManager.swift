@@ -380,70 +380,50 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate {
     
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         print("✅ Connected to \(peripheral.name ?? "Unknown Device")")
-        // 🧠 Restore startTime if recording was active before disconnect
-        
-        // Reset force recalibration flag
-            self.emg.forceMVERecalculation = true // Set this flag to trigger recalibration logic in EMG graph
 
-        DispatchQueue.main.async {
-            if self.emg.isRecording {
-                print("🔄 Resuming recording after reconnect...")
-                
-                // Force recalculation of %MVE and clear buffers that may have old data
-                self.emg.forceMVERecalculation = true
-                self.emg.percentMVEHistory.removeAll()
-                self.emg.recorded_rms.removeAll()
-                self.emg.shortTermRMSValues.removeAll()
-                self.emg.mveBufferwidget.removeAll()
-                
-                self.resetAfterReconnect()
-                self.startTime = CACurrentMediaTime()
-                self.firstSampleTimestamp = nil
-                self.expectedNextTimestamp = nil
-                
-                // Reset calibration if needed
-                       self.emg.calibrationBuffer.removeAll()
-                       self.emg.calibrationMVEHistory.removeAll()
+        // Stop scanning now that we're connected
+        myCentral.stopScan()
 
-                       // 🔁 Force recalibration on reconnect
-                       self.emg.forceMVERecalibration = true
-            }
-        }
-        
+        // Assign delegate and start discovering services
+        peripheral.delegate = self
+        peripheral.discoverServices(nil)
+        peripheral.discoverServices([batteryServiceUUID])
+
+        // Ensure UI updates
         DispatchQueue.main.async {
             self.isConnected = true
-            // ✅ Force EMG Graph UI refresh after reconnection
-               print("🔁 Forcing EMG graph redraw after reconnect.")
-               self.emg.objectWillChange.send()
+            print("🔁 Forcing EMG graph redraw after reconnect.")
+            self.emg.objectWillChange.send()
         }
-        
-        myCentral.stopScan()
-        
-        // ✅ Assign delegate to the peripheral (moved outside condition)
-        peripheral.delegate = self
-        
-        // ✅ Discover services
-        peripheral.discoverServices(nil)
-        
-        //peripheral.discoverServices
-        peripheral.discoverServices([batteryServiceUUID])
-        
-        // ✅ Ensure notifications remain active after connection
+
+        // If recording was active before disconnect, handle that logic here
+        DispatchQueue.main.async {
+            if self.emg.isRecording {
+                print("⚠️ Unexpected recording state on reconnect. Forcing stop.")
+                self.emg.isRecording = false
+                self.emg.recording = false
+            }
+
+            // 🔄 Always reset buffers and MVE recalibration flag on reconnect
+            self.resetAfterReconnect()
+            self.emg.forceMVERecalculation = true
+            self.emg.calibrationBuffer.removeAll()
+            self.emg.calibrationMVEHistory.removeAll()
+        }
+
+        // ✅ Enable EMG notifications if characteristic is already discovered
         if let emgCharacteristic = self.emgCharacteristic {
             peripheral.setNotifyValue(true, for: emgCharacteristic)
-            
+            print("✅ Notifications re-enabled for \(emgCharacteristic.uuid)")
+
             DispatchQueue.main.async {
-                self.emg.objectWillChange.send()  // Force chart to redraw
-                self.emg.record() // Restart recording logic if needed
+                self.emg.objectWillChange.send()
                 print("🔄 Triggered graph redraw after BLE reconnection")
             }
-            print("✅ Notifications re-enabled for \(emgCharacteristic.uuid)")
         } else {
             print("⚠️ No EMG characteristic found yet. Waiting for discovery...")
         }
     }
-    
-    
     
     // if the device is disconnected wait 1 second and try to restablish connection
     
@@ -672,20 +652,23 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             let normalizedTimestamp = self.normalizeTimestamp(timestamp)
-
-                    // ✅ Calibration Mode: Handle Calibration Logic
+            
                     if self.emg.isCalibrating {
                         print("📡 Collecting Calibration Data: \(sanitizedCGFloatData.count) values")
                         self.emg.calibrationBuffer.append(contentsOf: sanitizedCGFloatData)
                         self.emg.calibrationMVEHistory.append(sanitizedCGFloatData.max() ?? 0.0)
+
+                        // ✅ Also append to show data on graph
+                        self.emg.append(values: sanitizedCGFloatData, timestamp: normalizedTimestamp, isInterpolated: false)
 
                         // ✅ Stop Calibration after 10 seconds
                         if let start = self.emg.calibrationStartTime, CACurrentMediaTime() - start >= 10 {
                             print("⏳ Calibration complete. Stopping MVE calibration.")
                             self.emg.endMVECalibration()
                         }
-                        return  // ❗ Skip normal data processing during calibration
+                        return
                     }
+
 
                     // ✅ Check for large gaps in timestamps
                     if let lastTimestamp = self.emg.timestamps.last {
@@ -708,29 +691,28 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate {
             }
             
            // self.emg.append(values: sanitizedCGFloatData, timestamp: normalizedTimestamp)
-            self.emg.append(values: sanitizedCGFloatData, timestamp: normalizedTimestamp, isInterpolated: false)
-            
+        self.emg.append(values: sanitizedCGFloatData, timestamp: normalizedTimestamp, isInterpolated: false)
+                
             if let emgValue = sanitizedCGFloatData.first {
                 self.workoutManager?.saveEMGSample(Double(emgValue))
-                
+                    
                 // 🧹 Trim Old EMG Buffers (keep last 30 seconds @ 10 Hz = 1000 samples)
                 let keepLastN = 1000
-
+                    
                 if self.emg.timestamps.count > keepLastN {
                     let dropCount = self.emg.timestamps.count - keepLastN
-
+                        
                     self.emg.timestamps.removeFirst(dropCount)
                     self.emg.recorded_values.removeFirst(dropCount)
                     self.emg.recorded_rms.removeFirst(dropCount)
-
+                        
                     if self.emg.percentMVEHistory.count > keepLastN {
                         self.emg.percentMVEHistory.removeFirst(self.emg.percentMVEHistory.count - keepLastN)
                     }
-
+                        
                     print("🧹 Trimmed EMG buffers to last \(keepLastN) samples")
                 }
             }
-
         }
     }
    
@@ -1064,6 +1046,7 @@ extension BLEManager: CBPeripheralDelegate {
         }
     }
 }
+
 
 
 
