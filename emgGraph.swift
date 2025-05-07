@@ -14,8 +14,6 @@ class emgGraph: ObservableObject {
     @Published var forceMVERecalibration: Bool = false  // This will be triggered when the device reconnects
     
     
-    
-    
     public var calibrationBuffer: [CGFloat] = []
     public var calibrationStartTime: CFTimeInterval?
     
@@ -210,9 +208,16 @@ class emgGraph: ObservableObject {
             // let rmsValue = calculateRMS(from: values.map { Float($0) })  // Compute RMS from new values
             
             let rmsValue = recorded_rms.indices.contains(index) ? recorded_rms[index] : 0.0
-            let percentMVE = percentMVEHistory.indices.contains(index) ? percentMVEHistory[index] : 0.0
-            //  let percentMVE = mveValue > 0 ? (rmsValue / mveValue) * 100 : 0
-            
+            // Compute %MVE in all cases (for UI feedback), but only save if recording
+            //let percentMVE = percentMVEHistory.indices.contains(index) ? percentMVEHistory[index] : 0.0
+            let percentMVE = mveValue > 0 ? (rmsValue / mveValue) * 100 : 0
+
+            DispatchQueue.main.async {
+                self.percentMVEHistory.append(percentMVE)
+                if self.percentMVEHistory.count > self.maxBufferSize {
+                    self.percentMVEHistory.removeFirst()
+                }
+            }
             
             // ✅ Update max RMS dynamically during calibration
             // if isCalibrating {
@@ -345,8 +350,6 @@ class emgGraph: ObservableObject {
         }
     }
     
-    
-    
     func endMVECalibration() {
         if isCalibrating {
             // Update the mveValue after calibration with the max RMS value recorded during the calibration
@@ -356,10 +359,15 @@ class emgGraph: ObservableObject {
             } else {
                 print("⚠️ Calibration Failed! No values in buffer.")
             }
+
+            // ✅ Clear early inflated %MVE values from the graph
+            percentMVEHistory.removeAll()
+            recorded_rms.removeAll()
+            print("🧹 Cleared %MVE history after calibration.")
         } else {
             print("🔒 Calibration is over. Keeping previous MVE: \(mveValue)")
         }
-        
+
         isCalibrating = false  // Ensure calibration is marked as done
     }
     
@@ -509,15 +517,34 @@ class emgGraph: ObservableObject {
                 mveValue = value
             }
             
-            // ✅ Handle Calibration Mode
             if isCalibrating {
                 calibrationBuffer.append(contentsOf: values)
                 calibrationMVEHistory.append(values.max() ?? 0.0)
-                
+
+                for value in values {
+                    let sanitizedValue = value.isFinite ? value : 0.0
+                    self.values.append(sanitizedValue)
+                    let ts = CACurrentMediaTime()
+                    self.timestamps.append(ts)
+                }
+
+                // Prevent UI buffer overflow
+                if self.values.count > 500 {
+                    self.values.removeFirst(self.values.count - 500)
+                    self.timestamps.removeFirst(self.timestamps.count - 500)
+                }
+
+                // Force UI update
+                DispatchQueue.main.async {
+                    self.objectWillChange.send()
+                }
+
+                // Still auto-stop calibration after 10s
                 if let start = calibrationStartTime, CACurrentMediaTime() - start >= 10 {
                     endMVECalibration()
                 }
-                return  // ❗ Skip normal processing during calibration
+
+                return
             }
             
             // ✅ Move %MVE Calculation to Background Thread
@@ -531,32 +558,20 @@ class emgGraph: ObservableObject {
                 
                 // Update the UI on the main thread
                 DispatchQueue.main.async {
+                    self.percentMVEHistory.append(CGFloat(percentMVE)) // ✅ Show live MVE at all times
+
                     if !self.isCalibrating {
-                        self.percentMVEHistory.append(CGFloat(percentMVE))
-                        self.recorded_rms.append(CGFloat(rmsValue))
-                        
-                        // Ensure buffer does not overflow
-                        //if self.percentMVEHistory.count > 500 {
-                        //    self.percentMVEHistory.removeFirst(self.percentMVEHistory.count - 500)
-                        //}
-                        
-                        // Add the calculated %MVE to the mveBuffer for widget
+                        self.recorded_rms.append(CGFloat(rmsValue))       // ✅ Only record when not calibrating
                         self.mveBufferwidget.append(CGFloat(percentMVE))
-                        
-                        // Remove oldest data if buffer exceeds the maximum size
+
                         if self.mveBufferwidget.count > self.maxBufferSizewidget {
                             self.mveBufferwidget.removeFirst()
-                            //   print("✅ mveBufferwidget size exceeded, removed the oldest value.")
                         }
-                        
-                        // Check if 5 seconds have passed since the last update
+
                         let currentTimestampwidget = CACurrentMediaTime()
                         if currentTimestampwidget - self.lastSentTimestampwidget >= self.updateIntervalwidget {
                             self.lastSentTimestampwidget = currentTimestampwidget
-                            // Send the most recent %MVE data to the Live Activity
                             self.updateLiveActivity()
-                            
-                            
                         }
                     }
                 }
@@ -565,10 +580,10 @@ class emgGraph: ObservableObject {
             
             
             // ✅ Auto-start recording only once (prevent looping)
-            if !recording {
-                print("⚠️ Recording was not active. Starting once...")
-                self.record()
-            }
+            //if !recording {
+            //    print("⚠️ Recording was not active. Starting once...")
+            //    self.record()
+            //}
             
             // ✅ Ensure recording is active before appending
             guard recording else {
@@ -767,3 +782,4 @@ class emgGraph: ObservableObject {
         }
     }
 }
+
