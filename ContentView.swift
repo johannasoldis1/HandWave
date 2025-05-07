@@ -51,11 +51,13 @@ struct ContentView: View {
             FileWrapper(regularFileWithContents: text.data(using: .utf8) ?? Data())
         }
     }
-
+    // Make sure MVE is calibrated before MVE recording - recording automatic after calibration
+    
     func startCalibration() {
         isCalibrating = true
         calibrationTimeRemaining = 10
         emgGraph.startMVECalibration()
+
         Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { timer in
             if calibrationTimeRemaining > 0 {
                 calibrationTimeRemaining -= 1
@@ -63,6 +65,10 @@ struct ContentView: View {
                 timer.invalidate()
                 isCalibrating = false
                 emgGraph.endMVECalibration()
+                
+                // ✅ Start fresh recording AFTER calibration ends
+                isRecordingActive = true
+                emgGraph.record()
             }
         }
     }
@@ -252,4 +258,5 @@ struct EMGGraphView: View {
         }
     }
 }
+
 
