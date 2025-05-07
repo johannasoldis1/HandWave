@@ -14,7 +14,7 @@ struct WidgetmveLiveActivity: Widget {
             VStack(alignment: .leading) {
                 Text("📡 Live MVE% Active")
                     .font(.caption)
-                    .foregroundColor(.green)
+                    .foregroundColor(.blue)
 
                 EMGGraphView(values: context.state.graphValues)  // Pass the updated values
                                  .frame(height: 100)
@@ -24,7 +24,7 @@ struct WidgetmveLiveActivity: Widget {
                     .foregroundColor(.gray)
             }
             .padding()
-            .background(Color.black)
+            .background(Color.white)
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.center) {
@@ -73,7 +73,7 @@ struct EMGGraphView: View {
                     }
                 }
             }
-            .stroke(Color.green, lineWidth: 2)
+            .stroke(Color.blue, lineWidth: 2)
         }
     }
 }
